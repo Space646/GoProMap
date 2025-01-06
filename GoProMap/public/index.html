@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Path Map</title>
+  <style>
+    /* Set the size of the map */
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div> <!-- This is where the map will be rendered -->
+
+  <script>
+    let map;
+
+    // Function to initialize the map
+    function initMap() {
+      // Create a new map centered on a location (use a default or center around the data later)
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 37.7749, lng: -122.4194 }, // Default center (San Francisco)
+        zoom: 12,
+      });
+
+      // Fetch the list of JSON files from the backend
+      fetch('/json-files')
+        .then((response) => response.json())
+        .then((jsonFiles) => {
+          console.log('JSON Files:', jsonFiles); // Check if the files list is correct
+
+          // Load each JSON file
+          Promise.all(jsonFiles.map(file => fetch(`/gps_data/${file}`).then(response => response.json())))
+            .then((jsonDataArray) => {
+              jsonDataArray.forEach((data, index) => {
+                const fileName = jsonFiles[index];  // File name for the current data
+
+                // Place a marker for each GPS point in the data
+                data.forEach(entry => {
+                  const latLng = { lat: entry.latitude, lng: entry.longitude };
+
+                  // Create a marker at each GPS point
+                  const marker = new google.maps.Marker({
+                    position: latLng,
+                    map: map,
+                    title: `Time: ${entry.datetime}`,  // Optional: Show timestamp as a tooltip
+                  });
+
+                  // Create info window content with file name, latitude, longitude, and timestamp
+                  const infoWindowContent = `
+                    <div>
+                      <strong>File:</strong> ${fileName} <br>
+                      <strong>Latitude:</strong> ${entry.latitude} <br>
+                      <strong>Longitude:</strong> ${entry.longitude} <br>
+                      <strong>Time:</strong> ${entry.datetime}
+                    </div>
+                  `;
+
+                  // Create the info window
+                  const infoWindow = new google.maps.InfoWindow({
+                    content: infoWindowContent,
+                  });
+
+                  // Open the info window when the marker is clicked
+                  marker.addListener('click', function() {
+                    infoWindow.open(map, marker);
+                  });
+                });
+              });
+
+              // Adjust the map's viewport to fit all markers
+              const bounds = new google.maps.LatLngBounds();
+              jsonDataArray.forEach(data => {
+                data.forEach(entry => {
+                  const latLng = new google.maps.LatLng(entry.latitude, entry.longitude);
+                  bounds.extend(latLng);
+                });
+              });
+              map.fitBounds(bounds);
+            })
+            .catch((error) => console.error('Error loading JSON files:', error));
+        })
+        .catch((error) => console.error('Error fetching JSON files list:', error));
+    }
+
+    // Load Google Maps API with your API key
+    function loadScript() {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=YOURAPIKEY&callback=initMap`; // Insert your API Key here
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    // Call the function to load the Google Maps script
+    loadScript();
+  </script>
+</body>
+</html>
